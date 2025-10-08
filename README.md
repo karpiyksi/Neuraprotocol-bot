@@ -44,6 +44,8 @@ Run the bot:
 ```bash
 node sendERC20Token.js
 ```
+*The mailing progress is saved in the progress.json file. The mailing progress is saved in the progress.json file. When launched again, the bot resumes the mailing from the address where it stopped.*
+
 ## Important Notes ⚠️
 1. This bot is intended for use on the testnet only.
 2. Never use mainnet private keys.

@@ -1,6 +1,6 @@
-import { ethers } from "ethers";
-import fs from "fs";
-import * as dotenv from "dotenv";
+const { ethers } = require("ethers");
+const fs = require("fs");
+const dotenv = require("dotenv");
 dotenv.config();
 
 // Конфигурация кошельков

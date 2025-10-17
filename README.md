@@ -7,7 +7,7 @@
 
 ✅ **ANKR Transfers**: Sends small amounts of **ANKR** to random addresses from the wallet.txt file.  
 ✅ **ERC-20 tokens Transfers**: Sends small amounts of **ERC-20 tokens** to random addresses.  
-✅ **Automated Swaps**: *Soon*  
+✅ **Automated Swaps**: *ztUSD to PUMP, PUMP to ztUSD*  
 ✅ **Faucet Claims**: *Soon*  
 ✅ **Daily Check-ins**: *Soon*  
 ✅ **Multi-wallet Support**: Processes multiple wallets sequentially  
@@ -41,10 +41,16 @@ PRIVATE_KEY_2=second_private_key
 ## Usage 🚀
 
 Run the bot:
+Automatic swap ztUSD to PUMP and back.
+```bash
+node swap.js
+```
+ERC-20 tokens Transfers
 ```bash
 node sendERC20Token.js
 ```
-*The mailing progress is saved in the progress.json file. The mailing progress is saved in the progress.json file. When launched again, the bot resumes the mailing from the address where it stopped.*
+*The mailing progress is saved in the progress.json file. The mailing progress is saved in the progress.json file. When launched again, the bot resumes the mailing from the address where it stopped.*  
+*The code used for the exchange was [vikitoshi](https://github.com/vikitoshi)*
 
 ## Important Notes ⚠️
 1. This bot is intended for use on the testnet only.

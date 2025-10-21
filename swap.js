@@ -157,12 +157,12 @@ class SwapBot {
                     return false;
                 }
 
-                logger.warn(`Attempt ${i + 1}/${maxRetries} failed: ${message}. Retrying in 15 seconds...`);
+                logger.warn(`Attempt ${i + 1}/${maxRetries} failed: ${message}. Retrying in 25 seconds...`);
                 if (i === maxRetries - 1) {
                     logger.error(`Swap failed after ${maxRetries} attempts.`);
                     return false;
                 }
-                await delay(15000);
+                await delay(25000);
             }
         }
         return false;
@@ -224,8 +224,8 @@ console.log(`\n${colors.yellow}[!] Balances are shown for wallet: ${firstWallet.
                 const swapSuccess = await bot.performSwapWithRetries(tokenA, tokenB, amountAStr);
 
                 if (swapSuccess) {
-                    logger.loading('Waiting 15s before swapping back...');
-                    await delay(15000);
+                    logger.loading('Waiting 25s before swapping back...');
+                    await delay(25000);
 
                     let amountBToSwapStr;
                     if (tokenB.symbol === 'ANKR') {
@@ -252,8 +252,8 @@ console.log(`\n${colors.yellow}[!] Balances are shown for wallet: ${firstWallet.
                         logger.warn(`No ${tokenB.symbol} balance found to swap back. Skipping reverse swap.`);
                     }
                 }
-                logger.loading('Waiting 15s before next wallet/cycle...');
-                await delay(15000);
+                logger.loading('Waiting 25s before next wallet/cycle...');
+                await delay(25000);
             }
         } catch (e) {
             logger.error(`Swap flow failed for wallet ${bot.address}: ${e.message}`);

@@ -28,15 +28,40 @@ const logger = {
 const delay = (ms) => new Promise((r) => setTimeout(r, ms));
 const ask = (rl, q) => new Promise((res) => rl.question(q, res));
 
-const NEURA_RPC = 'https://testnet.rpc.neuraprotocol.io/';
+// RPC endpoints (primary + fallback)
+const NEURA_RPC_PRIMARY = 'https://rpc.ankr.com/neura_testnet';
+const NEURA_RPC_FALLBACK = 'https://testnet-rpc.neuraprotocol.io';
+
+// Get working provider with fallback
+let currentProvider = null;
+async function getWorkingProvider() {
+    if (currentProvider) return currentProvider;
+
+    try {
+        const primaryProvider = new ethers.JsonRpcProvider(NEURA_RPC_PRIMARY);
+        await primaryProvider.getBlockNumber(); // Check availability
+        logger.success(`Using primary RPC: ${NEURA_RPC_PRIMARY}`);
+        currentProvider = primaryProvider;
+        return primaryProvider;
+    } catch (e) {
+        logger.warn(`Primary RPC failed. Falling back to: ${NEURA_RPC_FALLBACK}`);
+        const fallbackProvider = new ethers.JsonRpcProvider(NEURA_RPC_FALLBACK);
+        await fallbackProvider.getBlockNumber(); // Check fallback
+        currentProvider = fallbackProvider;
+        return fallbackProvider;
+    }
+}
+
 const CONTRACTS = {
-    SWAP_ROUTER: '0x5AeFBA317BAba46EAF98Fd6f381d07673bcA6467',
-    WANKR: '0xbd833b6ecc30caeabf81db18bb0f1e00c6997e7a',
+    SWAP_ROUTER: '0x6836F8A9a66ab8430224aa9b4E6D24dc8d7d5d77',
+    WANKR: '0x422F5Eae5fEE0227FB31F149E690a73C4aD02dB8',
 };
 
 const TOKENS = [
-    { address: '0x9423c6C914857e6DaAACe3b585f4640231505128', symbol: 'ztUSD', decimals: 6 },
+    { address: '0x3A631ee99eF7fE2D248116982b14e7615ac77502', symbol: 'USDT', decimals: 6 },
     { address: '0x896ecE27cA041A2157DbC02c8B9BF62610c95B0f', symbol: 'PUMP', decimals: 18 },
+    { address: '0x422F5Eae5fEE0227FB31F149E690a73C4aD02dB8', symbol: 'WANKR', decimals: 18 },
+    { address: '0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE', symbol: 'ANKR', decimals: 18 }, 
 ];
 
 const ABIS = {
@@ -60,7 +85,6 @@ function encodeInnerSwap({ tokenIn, tokenOut, recipient, deadlineMs, amountInWei
     return '0x1679c792' + innerParams.slice(2);
 }
 
-// Получаем балансы всех токенов для кошелька
 async function getTokenBalances(wallet, tokens) {
     const balances = {};
     for (const token of tokens) {
@@ -82,12 +106,27 @@ function encodeRouterMulticall(calls) {
 
 class SwapBot {
     constructor(privateKey) {
-        this.provider = new ethers.JsonRpcProvider(NEURA_RPC);
-        this.wallet = new ethers.Wallet(privateKey, this.provider);
+        this.privateKey = privateKey;
+        this.provider = null;
+        this.wallet = null;
+        this.address = null;
+    }
+
+    async init() {
+        this.provider = await getWorkingProvider();
+        this.wallet = new ethers.Wallet(this.privateKey, this.provider);
         this.address = this.wallet.address;
     }
 
+    async ensureInitialized() {
+        if (!this.provider || !this.wallet) {
+            await this.init();
+        }
+    }
+
     async performSwap(tokenIn, tokenOut, amountInStr) {
+        await this.ensureInitialized();
+
         if (!amountInStr || isNaN(parseFloat(amountInStr)) || parseFloat(amountInStr) <= 0) {
             throw new Error(`Invalid or zero amount provided: "${amountInStr}"`);
         }
@@ -130,7 +169,7 @@ class SwapBot {
                 to: CONTRACTS.SWAP_ROUTER,
                 data,
                 value: txValue,
-                gasLimit: 600_000,
+                gasLimit: 500_000,
             });
             logger.loading(`Swap tx sent. Hash: ${tx.hash}`);
 
@@ -157,12 +196,12 @@ class SwapBot {
                     return false;
                 }
 
-                logger.warn(`Attempt ${i + 1}/${maxRetries} failed: ${message}. Retrying in 25 seconds...`);
+                logger.warn(`Attempt ${i + 1}/${maxRetries} failed: ${message}. Retrying in 15 seconds...`);
                 if (i === maxRetries - 1) {
                     logger.error(`Swap failed after ${maxRetries} attempts.`);
                     return false;
                 }
-                await delay(25000);
+                await delay(5000);
             }
         }
         return false;
@@ -185,16 +224,17 @@ async function main() {
     }
     logger.info(`Found ${pks.length} wallet(s) in .env file.`);
 
-// Проверяем балансы для ПЕРВОГО кошелька
-const firstWallet = new ethers.Wallet(pks[0], new ethers.JsonRpcProvider(NEURA_RPC));
-const balances = await getTokenBalances(firstWallet, TOKENS);
+    // Check balances for the first wallet
+    const provider = await getWorkingProvider();
+    const firstWallet = new ethers.Wallet(pks[0], provider);
+    const balances = await getTokenBalances(firstWallet, TOKENS);
 
-logger.step("Available Tokens (Balances for first wallet):");
-TOKENS.forEach((token, i) => {
-    const balance = parseFloat(balances[token.symbol]).toFixed(2);
-    console.log(`${i + 1}. ${token.symbol.padEnd(6)} | Balance: ${balance} ${token.symbol}`);
-});
-console.log(`\n${colors.yellow}[!] Balances are shown for wallet: ${firstWallet.address.slice(0, 10)}...${firstWallet.address.slice(-4)}${colors.reset}\n`);
+    logger.step("Available Tokens (Balances for first wallet):");
+    TOKENS.forEach((token, i) => {
+        const balance = parseFloat(balances[token.symbol]).toFixed(2);
+        console.log(`${i + 1}. ${token.symbol.padEnd(6)} | Balance: ${balance} ${token.symbol}`);
+    });
+    console.log(`\n${colors.yellow}[!] Balances are shown for wallet: ${firstWallet.address.slice(0, 10)}...${firstWallet.address.slice(-4)}${colors.reset}\n`);
 
     const fromIndexStr = await ask(rl, '\nEnter number for the token to swap FROM: ');
     const toIndexStr = await ask(rl, 'Enter number for the token to swap TO: ');
@@ -216,6 +256,7 @@ console.log(`\n${colors.yellow}[!] Balances are shown for wallet: ${firstWallet.
 
     for (const pk of pks) {
         const bot = new SwapBot(pk);
+        await bot.init(); // Initialize before use
         logger.step(`--- Processing Wallet ${bot.address.slice(0, 10)}... ---`);
         try {
             for (let j = 0; j < repeats; j++) {
@@ -224,8 +265,8 @@ console.log(`\n${colors.yellow}[!] Balances are shown for wallet: ${firstWallet.
                 const swapSuccess = await bot.performSwapWithRetries(tokenA, tokenB, amountAStr);
 
                 if (swapSuccess) {
-                    logger.loading('Waiting 25s before swapping back...');
-                    await delay(25000);
+                    logger.loading('Waiting 1s before swapping back...');
+                    await delay(1000);
 
                     let amountBToSwapStr;
                     if (tokenB.symbol === 'ANKR') {
@@ -243,7 +284,6 @@ console.log(`\n${colors.yellow}[!] Balances are shown for wallet: ${firstWallet.
                     }
 
                     if (amountBToSwapStr) {
-                        // Добавляем повторные попытки для обратного свапа (максимум 3 раза)
                         const reverseSwapSuccess = await bot.performSwapWithRetries(tokenB, tokenA, amountBToSwapStr, 3);
                         if (!reverseSwapSuccess) {
                             logger.warn(`Failed to perform reverse swap after retries. Continuing...`);
@@ -252,8 +292,8 @@ console.log(`\n${colors.yellow}[!] Balances are shown for wallet: ${firstWallet.
                         logger.warn(`No ${tokenB.symbol} balance found to swap back. Skipping reverse swap.`);
                     }
                 }
-                logger.loading('Waiting 25s before next wallet/cycle...');
-                await delay(25000);
+                logger.loading('Waiting 1s before next wallet/cycle...');
+                await delay(1000);
             }
         } catch (e) {
             logger.error(`Swap flow failed for wallet ${bot.address}: ${e.message}`);
